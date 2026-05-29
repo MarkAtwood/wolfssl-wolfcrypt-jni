@@ -179,7 +179,12 @@ public class WolfCryptKeyAgreement extends KeyAgreementSpi {
                         "Failed to get ECC public key from Key object");
                 }
 
-                this.ecPublic.publicKeyDecode(pubKey);
+                try {
+                    this.ecPublic.publicKeyDecode(pubKey);
+                } catch (WolfCryptException e) {
+                    throw new InvalidKeyException(
+                        "EC public key could not be decoded", e);
+                }
 
                 try {
                     this.ecPublic.checkKey();
@@ -620,11 +625,22 @@ public class WolfCryptKeyAgreement extends KeyAgreementSpi {
                 "ECC curve is null, please check algorithm parameters");
         }
 
+        /* Release and recreate native structs to support re-initialization.
+         * JCE requires KeyAgreement.init() to be callable multiple times. */
+        if (this.ecPrivate != null) {
+            this.ecPrivate.releaseNativeStruct();
+        }
+        this.ecPrivate = new Ecc();
+        if (this.ecPublic != null) {
+            this.ecPublic.releaseNativeStruct();
+        }
+        this.ecPublic = new Ecc();
+
         privKeyBytes = ecKey.getS().toByteArray();
 
         try {
             this.ecPrivate.importPrivateOnCurve(privKeyBytes,
-                null, this.curveName);
+                    null, this.curveName);
         } finally {
             zeroArray(privKeyBytes);
         }
