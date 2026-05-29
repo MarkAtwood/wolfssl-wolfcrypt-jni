@@ -1530,7 +1530,12 @@ public class WolfCryptCipher extends CipherSpi {
                         cipherMode != CipherMode.WC_CTR &&
                         cipherMode != CipherMode.WC_CTS &&
                         cipherMode != CipherMode.WC_OFB) {
-                        tmpOut = Aes.unPadPKCS7(tmpOut, Aes.BLOCK_SIZE);
+                        try {
+                            tmpOut = Aes.unPadPKCS7(tmpOut, Aes.BLOCK_SIZE);
+                        } catch (WolfCryptException e) {
+                            throw new BadPaddingException(
+                                "Invalid PKCS5/7 padding");
+                        }
                     }
                 }
 
@@ -1546,7 +1551,12 @@ public class WolfCryptCipher extends CipherSpi {
                 if (tmpOut != null && tmpOut.length > 0) {
                     if (this.direction == OpMode.WC_DECRYPT &&
                         this.paddingType == PaddingType.WC_PKCS5) {
-                        tmpOut = Des3.unPadPKCS7(tmpOut, Des3.BLOCK_SIZE);
+                        try {
+                            tmpOut = Des3.unPadPKCS7(tmpOut, Des3.BLOCK_SIZE);
+                        } catch (WolfCryptException e) {
+                            throw new BadPaddingException(
+                                "Invalid PKCS5/7 padding");
+                        }
                     }
                 }
 
