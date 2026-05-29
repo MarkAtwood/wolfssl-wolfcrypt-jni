@@ -135,6 +135,7 @@ public class WolfCryptCipher extends CipherSpi {
     /* RSA-OAEP parameters */
     private int oaepHashType = 0;
     private int oaepMgf = 0;
+    private OAEPParameterSpec oaepSpec = null;
 
     /* for debug logging */
     private String algString;
@@ -210,6 +211,8 @@ public class WolfCryptCipher extends CipherSpi {
     private void initOaepParams() {
         this.oaepHashType = WolfCrypt.WC_HASH_TYPE_SHA256;
         this.oaepMgf = Rsa.WC_MGF1SHA1;
+        this.oaepSpec = new OAEPParameterSpec("SHA-256", "MGF1",
+            MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT);
     }
 
     /**
@@ -220,6 +223,8 @@ public class WolfCryptCipher extends CipherSpi {
     private void initOaepParamsSha1() {
         this.oaepHashType = WolfCrypt.WC_HASH_TYPE_SHA;
         this.oaepMgf = Rsa.WC_MGF1SHA1;
+        this.oaepSpec = new OAEPParameterSpec("SHA-1", "MGF1",
+            MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT);
     }
 
     /**
@@ -344,6 +349,9 @@ public class WolfCryptCipher extends CipherSpi {
                     "are not supported");
             }
         }
+
+        /* Store spec for AlgorithmParameters retrieval */
+        this.oaepSpec = spec;
 
         /* Set OAEP hash type */
         this.oaepHashType = hashNameToWolfCryptType(spec.getDigestAlgorithm());
@@ -746,6 +754,11 @@ public class WolfCryptCipher extends CipherSpi {
                 /* ECB mode doesn't have parameters to return */
                 case WC_ECB:
                     break;
+            }
+
+            if (params == null && this.oaepSpec != null) {
+                params = AlgorithmParameters.getInstance("OAEP");
+                params.init(this.oaepSpec);
             }
 
         } catch (NoSuchAlgorithmException |
