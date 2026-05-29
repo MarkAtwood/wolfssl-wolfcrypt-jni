@@ -47,6 +47,7 @@ import java.security.interfaces.ECPrivateKey;
 
 import com.wolfssl.wolfcrypt.Dh;
 import com.wolfssl.wolfcrypt.Ecc;
+import com.wolfssl.wolfcrypt.WolfCryptException;
 
 /**
  * wolfCrypt JCE Key Agreement wrapper
@@ -70,6 +71,8 @@ public class WolfCryptKeyAgreement extends KeyAgreementSpi {
     private Ecc ecPrivate = null;
 
     private int primeLen  = 0;
+    private byte[] dhParamP = null;
+    private byte[] dhParamG = null;
     private int curveSize = 0;
     private String curveName = null;
 
@@ -127,10 +130,37 @@ public class WolfCryptKeyAgreement extends KeyAgreementSpi {
                         "Key must be of type DHPublicKey");
                 }
 
-                pubKey = ((DHPublicKey)key).getY().toByteArray();
+                DHPublicKey dhPubKey = (DHPublicKey)key;
+
+                pubKey = dhPubKey.getY().toByteArray();
                 if (pubKey == null) {
                     throw new InvalidKeyException(
                         "Failed to get DH public key from Key object");
+                }
+
+                if (this.dhParamP == null || this.dhParamG == null) {
+                    throw new InvalidKeyException(
+                        "DH private key not initialized with parameters");
+                }
+
+                BigInteger privP = new BigInteger(this.dhParamP);
+                BigInteger privG = new BigInteger(this.dhParamG);
+                BigInteger pubPBig = dhPubKey.getParams().getP();
+                BigInteger pubGBig = dhPubKey.getParams().getG();
+
+                if (!privP.equals(pubPBig) || !privG.equals(pubGBig)) {
+                    throw new InvalidKeyException(
+                        "DH public key parameters do not match " +
+                        "private key parameters, cannot generate " +
+                        "shared secret");
+                }
+
+                try {
+                    this.dh.checkPublicKey(pubKey);
+                } catch (WolfCryptException e) {
+                    throw new InvalidKeyException(
+                        "DH public key value is invalid for the " +
+                        "given group parameters", e);
                 }
 
                 this.dh.setPublicKey(pubKey);
@@ -150,6 +180,13 @@ public class WolfCryptKeyAgreement extends KeyAgreementSpi {
                 }
 
                 this.ecPublic.publicKeyDecode(pubKey);
+
+                try {
+                    this.ecPublic.checkKey();
+                } catch (WolfCryptException e) {
+                    throw new InvalidKeyException(
+                        "EC public key point is not on the curve", e);
+                }
 
                 break;
         };
@@ -451,6 +488,9 @@ public class WolfCryptKeyAgreement extends KeyAgreementSpi {
 
                 this.dh.setParams(paramP, paramG);
 
+                this.dhParamP = paramP;
+                this.dhParamG = paramG;
+
                 primeLen = paramP.length;
 
                 /* prime may have leading zero */
@@ -478,6 +518,9 @@ public class WolfCryptKeyAgreement extends KeyAgreementSpi {
         }
 
         this.dh.setParams(paramP, paramG);
+
+        this.dhParamP = paramP;
+        this.dhParamG = paramG;
 
         primeLen = paramP.length;
 
