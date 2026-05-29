@@ -145,6 +145,12 @@ public class WolfCryptCipher extends CipherSpi {
     private AlgorithmParameterSpec storedSpec = null;
     private byte[] iv = null;
 
+    /* Maximum plaintext size for AEAD modes (GCM/CCM).
+     * GCM counter is 32 bits; NIST SP 800-38D allows up to
+     * (2^32 - 2) * 16 bytes. We limit to Integer.MAX_VALUE to
+     * prevent counter wrap and OOM from unbounded buffering. */
+    private static final int AEAD_MAX_PLAINTEXT = Integer.MAX_VALUE;
+
     /* AES-GCM/CCM tag length (bytes), default to 128 bits */
     private int gcmTagLen = 16;
 
@@ -154,8 +160,11 @@ public class WolfCryptCipher extends CipherSpi {
     /* Has update/final been called yet, gates setting of AAD for GCM */
     private boolean operationStarted = false;
 
-    /* Has this Cipher been inintialized? */
+    /* Has this Cipher been initialized? */
     private boolean cipherInitialized = false;
+
+    /* Has engineDoFinal() been called without re-init? Prevents IV reuse. */
+    private boolean finalized = false;
 
     /* buffered data from update calls */
     private byte[] buffered = new byte[0];
@@ -1052,6 +1061,7 @@ public class WolfCryptCipher extends CipherSpi {
         wolfCryptSetDirection(opmode);
         wolfCryptSetIV(spec, random);
         wolfCryptSetKey(key);
+        this.finalized = false;
         this.operationStarted = false;
         this.cipherInitialized = true;
     }
@@ -1190,6 +1200,15 @@ public class WolfCryptCipher extends CipherSpi {
         if (input.length < (inputOffset + len)) {
             throw new IllegalArgumentException(
                 "Input buffer length smaller than inputOffset + len");
+        }
+
+        if (len > 0 && (cipherMode == CipherMode.WC_GCM ||
+            cipherMode == CipherMode.WC_CCM)) {
+            if ((buffered.length + len) > AEAD_MAX_PLAINTEXT) {
+                throw new IllegalStateException(
+                    "AEAD plaintext exceeds maximum size of " +
+                    AEAD_MAX_PLAINTEXT + " bytes");
+            }
         }
 
         this.operationStarted = true;
@@ -1745,6 +1764,11 @@ public class WolfCryptCipher extends CipherSpi {
         throws IllegalStateException, IllegalBlockSizeException,
                BadPaddingException {
 
+        if (this.finalized) {
+            throw new IllegalStateException(
+                "Cipher has already been finalized, must re-init");
+        }
+
         if (!this.cipherInitialized) {
             throw new IllegalStateException(
                 "Cipher has not been initialized yet");
@@ -1753,7 +1777,11 @@ public class WolfCryptCipher extends CipherSpi {
         log("final (offset: " + inputOffset + ", len: " + inputLen +
             ", buffered: " + buffered.length + ")");
 
-        return wolfCryptFinal(input, inputOffset, inputLen);
+        try {
+            return wolfCryptFinal(input, inputOffset, inputLen);
+        } finally {
+            this.finalized = true;
+        }
     }
 
     @Override
@@ -1763,6 +1791,11 @@ public class WolfCryptCipher extends CipherSpi {
                IllegalBlockSizeException, BadPaddingException {
 
         byte tmpOut[];
+
+        if (this.finalized) {
+            throw new IllegalStateException(
+                "Cipher has already been finalized, must re-init");
+        }
 
         if (!this.cipherInitialized) {
             throw new IllegalStateException(
@@ -1789,7 +1822,11 @@ public class WolfCryptCipher extends CipherSpi {
                 (output.length - outputOffset));
         }
 
-        tmpOut = wolfCryptFinal(input, inputOffset, inputLen);
+        try {
+            tmpOut = wolfCryptFinal(input, inputOffset, inputLen);
+        } finally {
+            this.finalized = true;
+        }
 
         if (output.length - outputOffset < tmpOut.length) {
             throw new ShortBufferException(
