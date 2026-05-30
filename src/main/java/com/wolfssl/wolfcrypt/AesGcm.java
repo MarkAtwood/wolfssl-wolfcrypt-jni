@@ -43,6 +43,10 @@ public class AesGcm extends NativeStruct {
         byte[] authTagOut, byte[] authIn);
     private native byte[] wc_AesGcmDecrypt(byte[] input, byte[] iv,
         byte[] authTag, byte[] authIn);
+    private native void wc_AesGcmEncryptInitStreaming(byte[] iv);
+    private native byte[] wc_AesGcmEncryptUpdateStreaming(byte[] input,
+        byte[] authIn);
+    private native byte[] wc_AesGcmEncryptFinalStreaming(int tagLen);
 
     /**
      * Create a new AesGcm object.
@@ -269,6 +273,75 @@ public class AesGcm extends NativeStruct {
         }
 
         return output;
+    }
+
+    /**
+     * Initialize streaming AES-GCM encryption. Key must already be loaded
+     * via setKey(). Only available when wolfSSL is compiled with
+     * WOLFSSL_AESGCM_STREAM.
+     *
+     * @param iv IV for AES-GCM operation
+     * @throws WolfCryptException if native operation fails or feature not compiled in
+     * @throws IllegalStateException if key not loaded or object released
+     */
+    public synchronized void encryptInitStreaming(byte[] iv)
+        throws IllegalStateException, WolfCryptException {
+
+        checkStateAndInitialize();
+        throwIfKeyNotLoaded();
+
+        synchronized (pointerLock) {
+            wc_AesGcmEncryptInitStreaming(iv);
+        }
+    }
+
+    /**
+     * Streaming AES-GCM encrypt update. Encrypts plaintext and/or processes
+     * AAD. May be called multiple times between encryptInitStreaming() and
+     * encryptFinalStreaming().
+     *
+     * @param input plaintext to encrypt, may be null or empty for AAD-only
+     * @param authIn additional authenticated data, may be null
+     * @return ciphertext bytes (same length as input)
+     * @throws WolfCryptException if native operation fails
+     * @throws IllegalStateException if key not loaded or object released
+     */
+    public synchronized byte[] encryptUpdateStreaming(byte[] input,
+        byte[] authIn) throws IllegalStateException, WolfCryptException {
+
+        byte[] output = null;
+
+        checkStateAndInitialize();
+        throwIfKeyNotLoaded();
+
+        synchronized (pointerLock) {
+            output = wc_AesGcmEncryptUpdateStreaming(input, authIn);
+        }
+
+        return output;
+    }
+
+    /**
+     * Finalize streaming AES-GCM encryption and generate authentication tag.
+     *
+     * @param tagLen desired auth tag length in bytes (up to AES block size 16)
+     * @return authentication tag bytes of length tagLen
+     * @throws WolfCryptException if native operation fails
+     * @throws IllegalStateException if key not loaded or object released
+     */
+    public synchronized byte[] encryptFinalStreaming(int tagLen)
+        throws IllegalStateException, WolfCryptException {
+
+        byte[] tag = null;
+
+        checkStateAndInitialize();
+        throwIfKeyNotLoaded();
+
+        synchronized (pointerLock) {
+            tag = wc_AesGcmEncryptFinalStreaming(tagLen);
+        }
+
+        return tag;
     }
 }
 
