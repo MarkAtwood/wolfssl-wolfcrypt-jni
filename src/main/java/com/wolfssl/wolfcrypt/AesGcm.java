@@ -28,6 +28,15 @@ public class AesGcm extends NativeStruct {
 
     private WolfCryptState state = WolfCryptState.UNINITIALIZED;
 
+    /** Streaming operation state */
+    private enum StreamingState {
+        /** No streaming operation in progress */
+        IDLE,
+        /** After encryptInitStreaming(), before encryptFinalStreaming() */
+        STREAMING
+    }
+    private StreamingState streamingState = StreamingState.IDLE;
+
     /** Lock around object state */
     protected final Object stateLock = new Object();
 
@@ -290,6 +299,9 @@ public class AesGcm extends NativeStruct {
         checkStateAndInitialize();
         throwIfKeyNotLoaded();
 
+        /* Allowed from IDLE or STREAMING (re-init resets a prior stream) */
+        streamingState = StreamingState.STREAMING;
+
         synchronized (pointerLock) {
             wc_AesGcmEncryptInitStreaming(iv);
         }
@@ -314,6 +326,12 @@ public class AesGcm extends NativeStruct {
         checkStateAndInitialize();
         throwIfKeyNotLoaded();
 
+        if (streamingState != StreamingState.STREAMING) {
+            throw new IllegalStateException(
+                "encryptInitStreaming must be called before " +
+                "encryptUpdateStreaming (current state: IDLE)");
+        }
+
         synchronized (pointerLock) {
             output = wc_AesGcmEncryptUpdateStreaming(input, authIn);
         }
@@ -337,8 +355,18 @@ public class AesGcm extends NativeStruct {
         checkStateAndInitialize();
         throwIfKeyNotLoaded();
 
-        synchronized (pointerLock) {
-            tag = wc_AesGcmEncryptFinalStreaming(tagLen);
+        if (streamingState != StreamingState.STREAMING) {
+            throw new IllegalStateException(
+                "encryptInitStreaming must be called before " +
+                "encryptFinalStreaming (current state: IDLE)");
+        }
+
+        try {
+            synchronized (pointerLock) {
+                tag = wc_AesGcmEncryptFinalStreaming(tagLen);
+            }
+        } finally {
+            streamingState = StreamingState.IDLE;
         }
 
         return tag;
