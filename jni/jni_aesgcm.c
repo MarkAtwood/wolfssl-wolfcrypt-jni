@@ -494,14 +494,20 @@ JNIEXPORT jbyteArray JNICALL Java_com_wolfssl_wolfcrypt_AesGcm_wc_1AesGcmEncrypt
     if (inputArr != NULL) {
         in = (const byte*)(*env)->GetByteArrayElements(env, inputArr, NULL);
         inLen = (*env)->GetArrayLength(env, inputArr);
+        if ((inLen > 0) && (in == NULL)) {
+            ret = BAD_FUNC_ARG;
+        }
     }
-    if (authInArr != NULL) {
+    if ((ret == 0) && (authInArr != NULL)) {
         authIn = (const byte*)(*env)->GetByteArrayElements(env,
             authInArr, NULL);
         authInSz = (*env)->GetArrayLength(env, authInArr);
+        if ((authInSz > 0) && (authIn == NULL)) {
+            ret = BAD_FUNC_ARG;
+        }
     }
 
-    if (inLen > 0) {
+    if ((ret == 0) && (inLen > 0)) {
         out = (byte*)XMALLOC(inLen, NULL, DYNAMIC_TYPE_TMP_BUFFER);
         if (out == NULL) {
             ret = MEMORY_E;

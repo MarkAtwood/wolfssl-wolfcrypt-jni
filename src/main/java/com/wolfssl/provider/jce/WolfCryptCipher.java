@@ -1766,6 +1766,11 @@ public class WolfCryptCipher extends CipherSpi {
 
         byte output[];
 
+        if (this.finalized) {
+            throw new IllegalStateException(
+                "Cipher has already been finalized, must re-init");
+        }
+
         if (!this.cipherInitialized) {
             throw new IllegalStateException(
                 "Cipher has not been initialized yet");
@@ -1821,6 +1826,11 @@ public class WolfCryptCipher extends CipherSpi {
         throws IllegalStateException, ShortBufferException {
 
         byte tmpOut[];
+
+        if (this.finalized) {
+            throw new IllegalStateException(
+                "Cipher has already been finalized, must re-init");
+        }
 
         if (!this.cipherInitialized) {
             throw new IllegalStateException(
@@ -2061,6 +2071,11 @@ public class WolfCryptCipher extends CipherSpi {
         byte[] encodedKey = null;
         byte[] wcBuf;
 
+        if (this.finalized) {
+            throw new IllegalStateException(
+                "Cipher has already been finalized, must re-init");
+        }
+
         if (key == null) {
             throw new InvalidKeyException(
                 "Key to be wrapped must not be null");
@@ -2089,6 +2104,11 @@ public class WolfCryptCipher extends CipherSpi {
             NoSuchAlgorithmException {
 
         byte[] unwrappedKey;
+
+        if (this.finalized) {
+            throw new IllegalStateException(
+                "Cipher has already been finalized, must re-init");
+        }
 
         if (wrappedKey == null || wrappedKey.length == 0) {
             throw new InvalidKeyException(
