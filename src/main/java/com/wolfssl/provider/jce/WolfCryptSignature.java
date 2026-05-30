@@ -344,16 +344,26 @@ public class WolfCryptSignature extends SignatureSpi {
                 long[] dQSz = new long[]{keySize};
                 long[] uSz = new long[]{keySize};
 
-                this.rsa.exportRawPrivateKey(n, nSz, e, eSz, d, dSz,
-                    p, pSz, q, qSz, dP, dPSz, dQ, dQSz, u, uSz);
+                try {
+                    this.rsa.exportRawPrivateKey(n, nSz, e, eSz, d, dSz,
+                        p, pSz, q, qSz, dP, dPSz, dQ, dQSz, u, uSz);
 
-                biN = new BigInteger(1, Arrays.copyOf(n, (int)nSz[0]));
-                biP = new BigInteger(1, Arrays.copyOf(p, (int)pSz[0]));
-                biQ = new BigInteger(1, Arrays.copyOf(q, (int)qSz[0]));
+                    biN = new BigInteger(1, Arrays.copyOf(n, (int)nSz[0]));
+                    biP = new BigInteger(1, Arrays.copyOf(p, (int)pSz[0]));
+                    biQ = new BigInteger(1, Arrays.copyOf(q, (int)qSz[0]));
 
-                if (!biN.equals(biP.multiply(biQ))) {
-                    throw new InvalidKeyException(
-                        "RSA private key modulus n does not equal p * q");
+                    if (!biN.equals(biP.multiply(biQ))) {
+                        throw new InvalidKeyException(
+                            "RSA private key modulus n does not equal p * q");
+                    }
+                } finally {
+                    /* Zero sensitive CRT components regardless of outcome */
+                    zeroArray(d);
+                    zeroArray(p);
+                    zeroArray(q);
+                    zeroArray(dP);
+                    zeroArray(dQ);
+                    zeroArray(u);
                 }
 
                 break;
