@@ -193,6 +193,24 @@ public class WolfCryptKeyAgreement extends KeyAgreementSpi {
                         "EC public key point is not on the curve", e);
                 }
 
+                /* Verify the public key curve matches the private key curve.
+                 * A curve mismatch (e.g. secp224r1 public against secp256r1
+                 * private) is caught here so the caller sees InvalidKeyException
+                 * rather than a WolfCryptException from makeSharedSecret. */
+                try {
+                    int pubCurveId  = this.ecPublic.getCurveId();
+                    int privCurveId = this.ecPrivate.getCurveId();
+                    if (pubCurveId != privCurveId) {
+                        throw new InvalidKeyException(
+                            "EC public key curve does not match private key " +
+                            "curve (public curveId=" + pubCurveId +
+                            ", private curveId=" + privCurveId + ")");
+                    }
+                } catch (WolfCryptException e) {
+                    throw new InvalidKeyException(
+                        "Failed to validate EC key curve compatibility", e);
+                }
+
                 break;
         };
 
@@ -345,7 +363,13 @@ public class WolfCryptKeyAgreement extends KeyAgreementSpi {
 
             case WC_ECDH:
 
-                tmp = this.ecPrivate.makeSharedSecret(this.ecPublic);
+                try {
+                    tmp = this.ecPrivate.makeSharedSecret(this.ecPublic);
+                } catch (WolfCryptException e) {
+                    throw new IllegalStateException(
+                        "Native ECDH shared secret generation failed: " +
+                        e.getMessage(), e);
+                }
                 if (tmp == null) {
                     throw new RuntimeException("Error when creating ECDH " +
                             "shared secret");
